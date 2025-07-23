@@ -1,62 +1,76 @@
-# app.py – Streamlit Web App for Predicting Early‑Stage Diabetes
-# --------------------------------------------------------------
-#  • Loads a LightGBM pipeline saved with joblib
-#  • Collects user inputs (age, gender, 14 symptoms)
-#  • Outputs prediction and probability
-# --------------------------------------------------------------
+# app.py – Early‑Stage Diabetes Risk Predictor (all‑in‑one)
+# ---------------------------------------------------------
+# • Embeds build_preprocessor and registers a fake `data_processing` module
+#   so joblib can un‑pickle the saved LightGBM pipeline.
+# • Presents a Streamlit UI for inference.
+# ---------------------------------------------------------
 
-import streamlit as st
-import pandas as pd
-import joblib
+# ----------------- std‑lib + third‑party imports -----------------
+import sys, types
 from pathlib import Path
 
-# ❗ IMPORTANT: Import the function/class that lives inside the pickled pipeline
-#    (We don't actually *use* it here; we just need it to exist at import time.)
-from data_processing import build_preprocessor  # noqa: F401  ← keep for un‑pickling
+import pandas as pd
+import joblib
+import streamlit as st
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder
+from lightgbm.sklearn import LGBMClassifier  # noqa: F401  (needed for un‑pickle)
 
-# --------------------------------------------------
-# Page config
-# --------------------------------------------------
-st.set_page_config(
-    page_title="Early‑Stage Diabetes Risk Predictor",
-    page_icon="🩺",
-    layout="centered",
-)
+# ----------------- 1️⃣  clone of build_preprocessor -----------------
+TARGET_COLUMN = "class"
 
-# --------------------------------------------------
-# Helper – load model once & cache
-# --------------------------------------------------
+def build_preprocessor(df: pd.DataFrame):
+    """Return a ColumnTransformer that one‑hot‑encodes categorical cols."""
+    cat_cols, num_cols = [], []
+    for col in df.columns:
+        if col == TARGET_COLUMN:
+            continue
+        if df[col].dtype == "object":
+            cat_cols.append(col)
+        else:
+            num_cols.append(col)
+
+    cat_pipe = Pipeline([("onehot", OneHotEncoder(handle_unknown="ignore"))])
+
+    return ColumnTransformer(
+        [("categorical", cat_pipe, cat_cols),
+         ("numeric", "passthrough", num_cols)]
+    )
+
+# ----------------- 2️⃣  register fake module for unpickling ----------
+fake_mod = types.ModuleType("data_processing")
+fake_mod.build_preprocessor = build_preprocessor
+sys.modules["data_processing"] = fake_mod     # 🎯 un‑picker will find it here
+
+# ----------------- 3️⃣  Streamlit page config -----------------------
+st.set_page_config(page_title="Diabetes Risk Predictor", page_icon="🩺")
+
+# ----------------- 4️⃣  load model (cached) -------------------------
 MODEL_PATH = "lightgbm_symptom_full.pkl"
 
 @st.cache_resource(show_spinner="Loading ML model…")
 def load_model(path: str):
     if not Path(path).exists():
-        st.error(f"❌ Model file not found: `{path}`")
+        st.error(f"Model file not found: {path}")
         st.stop()
     return joblib.load(path)
 
 model = load_model(MODEL_PATH)
-st.success("✅ Model loaded – ready for prediction!")
+st.success("✅ Model ready for prediction!")
 
-# --------------------------------------------------
-# UI – collect inputs
-# --------------------------------------------------
+# ----------------- 5️⃣  UI – collect user inputs --------------------
 st.title("🩺 Early‑Stage Diabetes Prediction")
-
-st.markdown(
-    "Fill in the details below, then click **Predict** "
-    "to estimate the likelihood of early‑stage diabetes."
-)
 
 age    = st.slider("Age (years)", 1, 120, 40)
 gender = st.radio("Gender", ["Male", "Female"])
 
 symptom_questions = {
-    "Polyuria (excessive urination)": "Polyuria",
-    "Polydipsia (excessive thirst)": "Polydipsia",
+    "Polyuria (excessive urination)": "Polyuria",
+    "Polydipsia (excessive thirst)": "Polydipsia",
     "Sudden weight loss": "sudden weight loss",
     "Weakness": "weakness",
-    "Polyphagia (excessive hunger)": "Polyphagia",
+    "Polyphagia (excessive hunger)": "Polyphagia",
     "Genital thrush": "Genital thrush",
     "Visual blurring": "visual blurring",
     "Itching": "Itching",
@@ -69,37 +83,34 @@ symptom_questions = {
 }
 
 st.markdown("### Symptom checklist")
-user_symptoms = {}
-for question, col_name in symptom_questions.items():
-    user_symptoms[col_name] = st.radio(question, ["No", "Yes"], key=col_name)
+user_symptoms = {
+    col: st.radio(q, ["No", "Yes"], key=col)
+    for q, col in symptom_questions.items()
+}
 
-# --------------------------------------------------
-# Build input DataFrame
-# --------------------------------------------------
-def build_input_df():
+# ----------------- 6️⃣  assemble input & predict --------------------
+def make_input():
     record = {"Age": age, "Gender": gender}
     record.update(user_symptoms)
     return pd.DataFrame([record])
 
-# --------------------------------------------------
-# Predict
-# --------------------------------------------------
-if st.button("🔮 Predict"):
-    X_input = build_input_df()
-
+if st.button("🔮 Predict"):
+    X = make_input()
     try:
-        pred_class  = model.predict(X_input)[0]          # 0 / 1
-        pred_proba  = model.predict_proba(X_input)[0][1] # probability of being Positive
+        pred       = model.predict(X)[0]          # 0 / 1
+        pred_prob  = model.predict_proba(X)[0][1] # probability of Positive
     except Exception as e:
         st.error(f"Prediction failed: {e}")
         st.stop()
 
-    result_text = "Positive (1)" if pred_class == 1 else "Negative (0)"
-    st.subheader(f"**Prediction:** {result_text}")
-    st.write(f"Probability of being Positive: **{pred_proba:.3f}**")
+    result = "Positive (1)" if pred == 1 else "Negative (0)"
+    st.subheader(f"**Prediction:** {result}")
+    st.write(f"Probability of being Positive: **{pred_prob:.3f}**")
 
     with st.expander("See model input"):
-        st.dataframe(X_input)
+        st.dataframe(X)
 
-st.caption("ℹ️ This tool is for educational purposes only. "
-           "Always consult a qualified healthcare professional for medical advice.")
+st.caption(
+    "ℹ️ This app is for educational purposes only. "
+    "Consult a qualified healthcare professional for medical advice."
+)
