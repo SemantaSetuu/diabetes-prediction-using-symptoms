@@ -18,7 +18,7 @@ from sklearn.preprocessing import OneHotEncoder
 from lightgbm.sklearn import LGBMClassifier  # noqa: F401  (needed for un‑pickle)
 from sklearn.preprocessing import LabelEncoder
 
-# ----------------- 1️⃣  clone of build_preprocessor -----------------
+# ----------------- 1clone of build_preprocessor -----------------
 TARGET_COLUMN = "class"
 
 def build_preprocessor(df: pd.DataFrame):
@@ -39,10 +39,10 @@ def build_preprocessor(df: pd.DataFrame):
          ("numeric", "passthrough", num_cols)]
     )
 
-# ----------------- 2️⃣  register fake module for unpickling ----------
+# ----------------- 2register fake module for unpickling ----------
 fake_mod = types.ModuleType("data_processing")
 fake_mod.build_preprocessor = build_preprocessor
-sys.modules["data_processing"] = fake_mod     # 🎯 un‑picker will find it here
+sys.modules["data_processing"] = fake_mod     # un‑picker will find it here
 
 # ----------------- 3️⃣  Streamlit page config -----------------------
 st.set_page_config(page_title="Diabetes Risk Predictor", page_icon="🩺")
@@ -58,10 +58,10 @@ def load_model(path: str):
     return joblib.load(path)
 
 model = load_model(MODEL_PATH)
-st.success("✅ Model ready for prediction!")
+st.success("Model ready for prediction!")
 
-# ----------------- 5️⃣  UI – collect user inputs --------------------
-st.title("🩺 Early‑Stage Diabetes Prediction")
+# ----------------- UI – collect user inputs --------------------
+st.title("Early‑Stage Diabetes Prediction")
 
 age    = st.slider("Age (years)", 1, 120, 40)
 gender = st.radio("Gender", ["Male", "Female"])
@@ -95,7 +95,7 @@ def make_input():
     record.update(user_symptoms)
     return pd.DataFrame([record])
 
-if st.button("🔮 Predict"):
+if st.button("Predict"):
     X = make_input()
     try:
         pred       = model.predict(X)[0]          # 0 / 1
