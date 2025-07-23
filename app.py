@@ -112,6 +112,5 @@ if st.button("Predict"):
         st.dataframe(X)
 
 st.caption(
-    "ℹ️ This app is for educational purposes only. "
-    "Consult a qualified healthcare professional for medical advice."
+    "Note: Consult a qualified physician or a doctor before making health decisions."
 )
