@@ -16,6 +16,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 from lightgbm.sklearn import LGBMClassifier  # noqa: F401  (needed for un‑pickle)
+from sklearn.preprocessing import LabelEncoder
 
 # ----------------- 1️⃣  clone of build_preprocessor -----------------
 TARGET_COLUMN = "class"
